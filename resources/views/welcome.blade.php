@@ -32,6 +32,11 @@
                     <a href="#features" class="text-gray-700 hover:text-indigo-600 font-medium transition">Características</a>
                     <a href="#how-it-works" class="text-gray-700 hover:text-indigo-600 font-medium transition">Cómo Funciona</a>
                     <a href="#testimonials" class="text-gray-700 hover:text-indigo-600 font-medium transition">Testimonios</a>
+                    @auth
+                        <a href="{{ route('dashboard') }}" class="text-gray-700 hover:text-indigo-600 font-medium transition flex items-center">
+                            <x-icons.users class="mr-1 text-sm" /> Dashboard
+                        </a>
+                    @endauth
                 </div>
 
                 <div class="flex items-center space-x-4">
@@ -57,6 +62,12 @@
 
     <!-- Categories Section -->
     <x-landing.categories />
+
+    <!-- Destinations Section -->
+    <x-landing.destinations />
+
+    <!-- Featured Restaurants Section -->
+    <x-landing.featured-restaurants />
 
     <!-- Features Section -->
     <div id="features">
