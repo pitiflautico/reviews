@@ -47,11 +47,20 @@
                     <div class="relative z-10">
                         <p class="text-white/80 text-sm font-medium mb-2">Miembros</p>
                         <p class="text-5xl font-bold mb-1">{{ $network->members->count() }}</p>
-                        <div class="flex items-center mt-3">
+                        <div class="flex items-center justify-between mt-3 gap-2">
                             <span class="inline-flex items-center px-3 py-1 bg-white/20 backdrop-blur rounded-full text-xs font-semibold">
                                 <x-icons.users class="mr-1 text-sm" />
                                 {{ ucfirst($memberRole) }}
                             </span>
+                            @if(in_array($memberRole, ['owner', 'admin']) || ($network->allow_member_invites && $memberRole === 'member'))
+                                <a href="{{ route('networks.members.invite', $network) }}"
+                                   class="inline-flex items-center px-3 py-1 bg-white/90 hover:bg-white text-indigo-600 rounded-lg text-xs font-semibold transition shadow-sm">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                    </svg>
+                                    Invitar
+                                </a>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -198,6 +207,17 @@
 
                 <!-- Members Tab -->
                 <div id="content-members" class="tab-content hidden p-8">
+                    @if(in_array($memberRole, ['owner', 'admin']) || ($network->allow_member_invites && $memberRole === 'member'))
+                        <div class="flex justify-end mb-6">
+                            <a href="{{ route('networks.members.invite', $network) }}"
+                               class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl transition duration-200 shadow-lg">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                Invitar Miembro
+                            </a>
+                        </div>
+                    @endif
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         @foreach($network->members as $member)
                             <div class="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition">

@@ -20,7 +20,7 @@ class NetworkMemberController extends Controller
         }
 
         $memberRole = $network->getMemberRole(Auth::user());
-        $members = $network->members()->withPivot('role', 'joined_at')->orderBy('network_user.joined_at', 'desc')->get();
+        $members = $network->members()->withPivot('role', 'joined_at')->orderBy('memberships.joined_at', 'desc')->get();
 
         return view('networks.members.index', compact('network', 'memberRole', 'members'));
     }
