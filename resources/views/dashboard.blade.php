@@ -1,11 +1,15 @@
 <x-app-layout>
     <x-slot name="header">
         <div class="flex justify-between items-center">
-            <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                {{ __('Mis Redes de Reseñas') }}
+            <h2 class="font-semibold text-3xl text-gray-800 leading-tight">
+                Mis Redes de Reseñas
             </h2>
-            <a href="{{ route('networks.create') }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
-                + Crear Nueva Red
+            <a href="{{ route('networks.create') }}"
+               class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl transition duration-200 shadow-lg">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Crear Nueva Red
             </a>
         </div>
     </x-slot>
@@ -14,62 +18,74 @@
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             @if($networks->isEmpty())
                 <!-- Empty state -->
-                <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-12 text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                        <h3 class="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">No tienes redes aún</h3>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            Comienza creando tu primera red privada de reseñas gastronómicas.
-                        </p>
-                        <div class="mt-6">
-                            <a href="{{ route('networks.create') }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
-                                + Crear Mi Primera Red
-                            </a>
-                        </div>
+                <div class="bg-white rounded-xl shadow-md p-16 text-center">
+                    <div class="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full mb-6">
+                        <x-icons.users class="text-5xl text-indigo-600" />
                     </div>
+                    <h3 class="text-3xl font-bold text-gray-900 mb-3">No tienes redes aún</h3>
+                    <p class="text-gray-600 mb-8 max-w-md mx-auto">
+                        Comienza creando tu primera red privada de reseñas gastronómicas y comparte tus experiencias con amigos y familia.
+                    </p>
+                    <a href="{{ route('networks.create') }}"
+                       class="inline-flex items-center px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl transition duration-200 shadow-lg">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Crear Mi Primera Red
+                    </a>
                 </div>
             @else
                 <!-- Networks grid -->
                 <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     @foreach($networks as $network)
-                        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg hover:shadow-md transition-shadow">
-                            <div class="p-6">
-                                <div class="flex items-center justify-between">
-                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        <div class="bg-white rounded-xl shadow-md hover:shadow-xl transition duration-300 overflow-hidden border border-gray-100">
+                            <!-- Header with gradient -->
+                            <div class="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
+                                <div class="flex items-start justify-between mb-3">
+                                    <h3 class="text-2xl font-bold flex-1">
                                         {{ $network->name }}
                                     </h3>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                                    <span class="inline-flex items-center px-3 py-1 bg-white/20 backdrop-blur rounded-full text-xs font-semibold">
                                         {{ ucfirst($network->pivot->role ?? 'member') }}
                                     </span>
                                 </div>
-
                                 @if($network->description)
-                                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                                    <p class="text-white/90 text-sm line-clamp-2">
                                         {{ $network->description }}
                                     </p>
                                 @endif
+                            </div>
 
-                                <div class="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
-                                    <svg class="mr-1.5 h-5 w-5 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                            <!-- Stats -->
+                            <div class="p-6">
+                                <div class="grid grid-cols-2 gap-4 mb-6">
+                                    <div class="bg-gray-50 rounded-lg p-3">
+                                        <div class="flex items-center gap-2 text-gray-600 text-xs mb-1">
+                                            <x-icons.users class="text-sm" />
+                                            Miembros
+                                        </div>
+                                        <div class="text-2xl font-bold text-gray-900">
+                                            {{ $network->members_count ?? $network->members->count() }}
+                                        </div>
+                                    </div>
+                                    <div class="bg-gray-50 rounded-lg p-3">
+                                        <div class="flex items-center gap-2 text-gray-600 text-xs mb-1">
+                                            <x-icons.star class="text-sm" />
+                                            Reseñas
+                                        </div>
+                                        <div class="text-2xl font-bold text-gray-900">
+                                            {{ $network->reviews_count ?? $network->reviews->count() }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <a href="{{ route('networks.show', $network) }}"
+                                   class="block w-full text-center px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-lg transition duration-200">
+                                    Ver Red
+                                    <svg class="w-4 h-4 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                                     </svg>
-                                    {{ $network->members_count ?? $network->members->count() }} miembros
-                                </div>
-
-                                <div class="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
-                                    <svg class="mr-1.5 h-5 w-5 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                                    </svg>
-                                    {{ $network->reviews_count ?? $network->reviews->count() }} reseñas
-                                </div>
-
-                                <div class="mt-6">
-                                    <a href="{{ route('networks.show', $network) }}" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium text-sm">
-                                        Ver red →
-                                    </a>
-                                </div>
+                                </a>
                             </div>
                         </div>
                     @endforeach
@@ -77,4 +93,13 @@
             @endif
         </div>
     </div>
+
+    <style>
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+    </style>
 </x-app-layout>
