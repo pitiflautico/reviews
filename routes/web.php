@@ -50,6 +50,10 @@ Route::middleware('auth')->group(function () {
     // Review comment routes
     Route::post('networks/{network}/reviews/{review}/comments', [App\Http\Controllers\ReviewCommentController::class, 'store'])
         ->name('networks.reviews.comments.store');
+
+    // Restaurant routes (nested under networks)
+    Route::get('networks/{network}/restaurants/{restaurant}', [App\Http\Controllers\RestaurantController::class, 'show'])
+        ->name('networks.restaurants.show');
 });
 
 require __DIR__.'/auth.php';

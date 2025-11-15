@@ -22,6 +22,10 @@ class Review extends Model
         'user_id',
         'restaurant_id',
         'rating',
+        'quality_rating',
+        'hospitality_rating',
+        'service_rating',
+        'pricing_rating',
         'comment',
         'date_of_visit',
         'meal_type',
@@ -67,6 +71,22 @@ class Review extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(ReviewComment::class);
+    }
+
+    /**
+     * Relación: Fotos de esta reseña
+     */
+    public function photos(): HasMany
+    {
+        return $this->hasMany(ReviewPhoto::class)->orderBy('order');
+    }
+
+    /**
+     * Relación: Precios de esta reseña
+     */
+    public function prices(): HasMany
+    {
+        return $this->hasMany(ReviewPrice::class);
     }
 
     /**

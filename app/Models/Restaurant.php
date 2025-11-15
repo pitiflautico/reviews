@@ -31,7 +31,16 @@ class Restaurant extends Model
         'cuisine_type',
         'price_range',
         'phone',
+        'email',
         'website',
+        'description',
+        'status',
+        'tags',
+        'amenities',
+        'facebook_url',
+        'instagram_url',
+        'twitter_url',
+        'logo_url',
     ];
 
     /**
@@ -42,6 +51,8 @@ class Restaurant extends Model
     protected $casts = [
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
+        'tags' => 'array',
+        'amenities' => 'array',
     ];
 
     /**

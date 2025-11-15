@@ -143,9 +143,11 @@
                                 <div class="bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition">
                                     <div class="flex justify-between items-start mb-4">
                                         <div class="flex-1">
-                                            <h4 class="text-xl font-bold text-gray-900 mb-1">
-                                                {{ $review->restaurant->name }}
-                                            </h4>
+                                            <a href="{{ route('networks.restaurants.show', [$network, $review->restaurant]) }}" class="group">
+                                                <h4 class="text-xl font-bold text-gray-900 mb-1 group-hover:text-indigo-600 transition">
+                                                    {{ $review->restaurant->name }}
+                                                </h4>
+                                            </a>
                                             <div class="flex items-center gap-2 text-sm text-gray-600">
                                                 @if($review->restaurant->city)
                                                     <span class="flex items-center">
@@ -218,27 +220,94 @@
                             </a>
                         </div>
                     @endif
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        @foreach($network->members as $member)
-                            <div class="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition">
-                                <div class="flex items-center gap-4">
-                                    @if($member->avatar)
-                                        <img src="{{ $member->avatar }}" alt="{{ $member->name }}" class="w-16 h-16 rounded-full border-4 border-indigo-200">
-                                    @else
-                                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-2xl">
-                                            {{ strtoupper(substr($member->name, 0, 1)) }}
-                                        </div>
-                                    @endif
-                                    <div class="flex-1">
-                                        <h4 class="font-bold text-gray-900 text-lg">{{ $member->name }}</h4>
-                                        <p class="text-sm text-gray-600">{{ $member->email }}</p>
-                                        <span class="inline-block mt-2 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-semibold">
-                                            {{ ucfirst($member->pivot->role) }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
+
+                    <!-- Members List Table -->
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Miembro
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Fecha de Invitación
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Estado
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Reviews
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Promedio
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                @foreach($network->members as $member)
+                                    @php
+                                        $memberReviews = $network->reviews->where('user_id', $member->id);
+                                        $reviewCount = $memberReviews->count();
+                                        $avgRating = $reviewCount > 0 ? $memberReviews->avg('rating') : 0;
+                                    @endphp
+                                    <tr class="hover:bg-gray-50 transition">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                @if($member->avatar)
+                                                    <img src="{{ $member->avatar }}" alt="{{ $member->name }}" class="w-12 h-12 rounded-full border-2 border-indigo-200">
+                                                @else
+                                                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                                                        {{ strtoupper(substr($member->name, 0, 1)) }}
+                                                    </div>
+                                                @endif
+                                                <div class="ml-4">
+                                                    <div class="text-sm font-bold text-gray-900">{{ $member->name }}</div>
+                                                    <div class="text-sm text-gray-500">{{ $member->email }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-900">
+                                                {{ $member->pivot->joined_at ? $member->pivot->joined_at->format('d/m/Y') : 'N/A' }}
+                                            </div>
+                                            <div class="text-xs text-gray-500">
+                                                {{ $member->pivot->joined_at ? $member->pivot->joined_at->diffForHumans() : '' }}
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            @php
+                                                $roleColors = [
+                                                    'owner' => 'bg-purple-100 text-purple-800',
+                                                    'admin' => 'bg-indigo-100 text-indigo-800',
+                                                    'member' => 'bg-gray-100 text-gray-800',
+                                                ];
+                                                $colorClass = $roleColors[$member->pivot->role] ?? 'bg-gray-100 text-gray-800';
+                                            @endphp
+                                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full {{ $colorClass }}">
+                                                {{ ucfirst($member->pivot->role) }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <x-icons.star class="text-yellow-400 mr-1" />
+                                                <span class="text-sm font-semibold text-gray-900">{{ $reviewCount }}</span>
+                                                <span class="text-xs text-gray-500 ml-1">{{ $reviewCount === 1 ? 'review' : 'reviews' }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="flex mr-2">
+                                                    @for($i = 1; $i <= 5; $i++)
+                                                        <x-icons.star class="{{ $i <= round($avgRating) ? 'text-yellow-400' : 'text-gray-300' }} text-sm" />
+                                                    @endfor
+                                                </div>
+                                                <span class="text-sm font-semibold text-gray-900">{{ number_format($avgRating, 1) }}</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
