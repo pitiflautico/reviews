@@ -31,6 +31,13 @@ Route::middleware('auth')->group(function () {
 
     // Network routes
     Route::resource('networks', NetworkController::class);
+
+    // Review routes (nested under networks)
+    Route::resource('networks.reviews', App\Http\Controllers\ReviewController::class);
+
+    // Review comment routes
+    Route::post('networks/{network}/reviews/{review}/comments', [App\Http\Controllers\ReviewCommentController::class, 'store'])
+        ->name('networks.reviews.comments.store');
 });
 
 require __DIR__.'/auth.php';
