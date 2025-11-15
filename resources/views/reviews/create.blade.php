@@ -21,26 +21,49 @@
             <form method="POST" action="{{ route('networks.reviews.store', $network) }}" class="space-y-6">
                 @csrf
 
-                <!-- Restaurant Selection -->
-                <div class="bg-white rounded-xl shadow-md p-8">
+                <!-- Restaurant Selection/Creation -->
+                <div class="bg-white rounded-xl shadow-md p-8" x-data="{ option: 'existing' }">
                     <div class="flex items-center gap-3 mb-6">
                         <div class="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg p-3">
                             <x-icons.utensils class="text-2xl text-white" />
                         </div>
                         <div>
                             <h3 class="text-xl font-bold text-gray-900">Restaurante</h3>
-                            <p class="text-sm text-gray-600">Selecciona el restaurante que visitaste</p>
+                            <p class="text-sm text-gray-600">Selecciona o crea un restaurante</p>
                         </div>
                     </div>
 
-                    <div>
+                    <!-- Toggle Buttons -->
+                    <div class="flex gap-3 mb-6">
+                        <button
+                            type="button"
+                            @click="option = 'existing'"
+                            :class="option === 'existing' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                            class="flex-1 px-4 py-3 font-semibold rounded-xl transition"
+                        >
+                            Seleccionar Existente
+                        </button>
+                        <button
+                            type="button"
+                            @click="option = 'new'"
+                            :class="option === 'new' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                            class="flex-1 px-4 py-3 font-semibold rounded-xl transition"
+                        >
+                            Crear Nuevo
+                        </button>
+                    </div>
+
+                    <input type="hidden" name="restaurant_option" :value="option">
+
+                    <!-- Existing Restaurant Selection -->
+                    <div x-show="option === 'existing'" x-transition>
                         <label for="restaurant_id" class="block text-sm font-semibold text-gray-700 mb-2">
                             <x-icons.search class="inline mr-1" /> Buscar Restaurante
                         </label>
                         <select
                             id="restaurant_id"
                             name="restaurant_id"
-                            required
+                            :required="option === 'existing'"
                             class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                         >
                             <option value="">Selecciona un restaurante...</option>
@@ -52,7 +75,155 @@
                         </select>
                         <x-input-error :messages="$errors->get('restaurant_id')" class="mt-2" />
                     </div>
+
+                    <!-- New Restaurant Form -->
+                    <div x-show="option === 'new'" x-transition class="space-y-4">
+                        <!-- Geolocation Button -->
+                        <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-semibold text-indigo-900">Usar mi ubicación</p>
+                                    <p class="text-xs text-indigo-700 mt-1">Detecta automáticamente la dirección del restaurante</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onclick="getLocation()"
+                                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition"
+                                >
+                                    <x-icons.location class="inline mr-1" /> Detectar
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Restaurant Name -->
+                        <div>
+                            <label for="restaurant_name" class="block text-sm font-semibold text-gray-700 mb-2">
+                                Nombre del Restaurante *
+                            </label>
+                            <input
+                                id="restaurant_name"
+                                type="text"
+                                name="restaurant_name"
+                                value="{{ old('restaurant_name') }}"
+                                :required="option === 'new'"
+                                class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                                placeholder="Ej: La Trattoria Italiana"
+                            />
+                            <x-input-error :messages="$errors->get('restaurant_name')" class="mt-2" />
+                        </div>
+
+                        <!-- Address -->
+                        <div>
+                            <label for="restaurant_address" class="block text-sm font-semibold text-gray-700 mb-2">
+                                Dirección *
+                            </label>
+                            <input
+                                id="restaurant_address"
+                                type="text"
+                                name="restaurant_address"
+                                value="{{ old('restaurant_address') }}"
+                                :required="option === 'new'"
+                                class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                                placeholder="Calle Principal 123"
+                            />
+                            <x-input-error :messages="$errors->get('restaurant_address')" class="mt-2" />
+                        </div>
+
+                        <!-- City & Cuisine Type -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="restaurant_city" class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Ciudad
+                                </label>
+                                <input
+                                    id="restaurant_city"
+                                    type="text"
+                                    name="restaurant_city"
+                                    value="{{ old('restaurant_city') }}"
+                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                                    placeholder="Madrid"
+                                />
+                                <x-input-error :messages="$errors->get('restaurant_city')" class="mt-2" />
+                            </div>
+
+                            <div>
+                                <label for="restaurant_cuisine_type" class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Tipo de Cocina *
+                                </label>
+                                <input
+                                    id="restaurant_cuisine_type"
+                                    type="text"
+                                    name="restaurant_cuisine_type"
+                                    value="{{ old('restaurant_cuisine_type') }}"
+                                    :required="option === 'new'"
+                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                                    placeholder="Italiana, Mexicana, etc."
+                                />
+                                <x-input-error :messages="$errors->get('restaurant_cuisine_type')" class="mt-2" />
+                            </div>
+                        </div>
+
+                        <!-- Hidden coordinates -->
+                        <input type="hidden" id="restaurant_latitude" name="restaurant_latitude" value="{{ old('restaurant_latitude') }}">
+                        <input type="hidden" id="restaurant_longitude" name="restaurant_longitude" value="{{ old('restaurant_longitude') }}">
+
+                        <div id="location-status" class="text-sm text-gray-600"></div>
+                    </div>
                 </div>
+
+                <script>
+                    function getLocation() {
+                        const statusEl = document.getElementById('location-status');
+                        statusEl.innerHTML = '<span class="text-indigo-600">Obteniendo ubicación...</span>';
+
+                        if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(
+                                function(position) {
+                                    const lat = position.coords.latitude;
+                                    const lon = position.coords.longitude;
+
+                                    document.getElementById('restaurant_latitude').value = lat;
+                                    document.getElementById('restaurant_longitude').value = lon;
+
+                                    // Reverse geocoding with Nominatim
+                                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+                                        .then(response => response.json())
+                                        .then(data => {
+                                            if (data.address) {
+                                                const address = data.address;
+
+                                                // Fill in address
+                                                if (address.road) {
+                                                    const street = address.road + (address.house_number ? ' ' + address.house_number : '');
+                                                    document.getElementById('restaurant_address').value = street;
+                                                }
+
+                                                // Fill in city
+                                                const city = address.city || address.town || address.village || address.municipality;
+                                                if (city) {
+                                                    document.getElementById('restaurant_city').value = city;
+                                                }
+
+                                                statusEl.innerHTML = '<span class="text-green-600">✓ Ubicación detectada exitosamente</span>';
+                                            } else {
+                                                statusEl.innerHTML = '<span class="text-yellow-600">Coordenadas guardadas. Por favor completa la dirección manualmente.</span>';
+                                            }
+                                        })
+                                        .catch(error => {
+                                            console.error('Error:', error);
+                                            statusEl.innerHTML = '<span class="text-yellow-600">Coordenadas guardadas. Por favor completa la dirección manualmente.</span>';
+                                        });
+                                },
+                                function(error) {
+                                    statusEl.innerHTML = '<span class="text-red-600">Error: No se pudo obtener la ubicación. Por favor ingresa la dirección manualmente.</span>';
+                                    console.error('Geolocation error:', error);
+                                }
+                            );
+                        } else {
+                            statusEl.innerHTML = '<span class="text-red-600">Tu navegador no soporta geolocalización.</span>';
+                        }
+                    }
+                </script>
 
                 <!-- Rating -->
                 <div class="bg-white rounded-xl shadow-md p-8">
