@@ -88,15 +88,16 @@ CREATE INDEX idx_users_email ON users(email);
 **Campos**:
 ```sql
 CREATE TABLE networks (
-    id              BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-    name            VARCHAR(255) NOT NULL,
-    slug            VARCHAR(255) NOT NULL UNIQUE,
-    description     TEXT NULL,
-    is_private      BOOLEAN DEFAULT TRUE,
-    settings        JSON NULL,
-    created_at      TIMESTAMP NULL,
-    updated_at      TIMESTAMP NULL,
-    deleted_at      TIMESTAMP NULL  -- Soft deletes
+    id                      BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    name                    VARCHAR(255) NOT NULL,
+    slug                    VARCHAR(255) NOT NULL UNIQUE,
+    description             TEXT NULL,
+    is_private              BOOLEAN DEFAULT TRUE,
+    allow_member_invites    BOOLEAN DEFAULT FALSE,        -- Si TRUE, members pueden invitar
+    settings                JSON NULL,
+    created_at              TIMESTAMP NULL,
+    updated_at              TIMESTAMP NULL,
+    deleted_at              TIMESTAMP NULL  -- Soft deletes
 );
 
 -- Índices
@@ -193,33 +194,78 @@ CREATE INDEX idx_invitations_expires_at ON invitations(expires_at);
 
 ---
 
+#### 🔐 REGLAS OFICIALES DE INVITACIONES
+
+**Principio**: Solo miembros que YA pertenecen a la red pueden enviar invitaciones.
+
+**Lógica de permisos**:
+
+```php
+// Pseudocódigo de autorización
+if (!user->belongsToNetwork($network)) {
+    return FORBIDDEN; // Usuario externo NO puede invitar
+}
+
+$membership = user->membershipIn($network);
+
+if ($membership->role === 'admin') {
+    return ALLOW; // Admin SIEMPRE puede invitar
+}
+
+if ($membership->role === 'member') {
+    if ($network->allow_member_invites === true) {
+        return ALLOW; // Member puede invitar si está habilitado
+    } else {
+        return FORBIDDEN; // Member NO puede invitar por defecto
+    }
+}
+
+return FORBIDDEN;
+```
+
+**Por defecto**:
+- `network.allow_member_invites = FALSE` → Solo admins pueden invitar
+- Admins de la red pueden cambiar este setting
+
+**UI/UX**:
+- Botón "Invitar" solo visible si usuario tiene permisos
+- Si accede por URL directa sin permiso → HTTP 403
+
+---
+
 ### 5. `restaurants` - Restaurantes
 
 **Propósito**: Lugares que se pueden reseñar
 
+**⭐ IMPORTANTE**: Los restaurantes son **GLOBALES** - un catálogo unificado para TODAS las redes. No se duplican por red.
+
 **Campos**:
 ```sql
 CREATE TABLE restaurants (
-    id              BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-    name            VARCHAR(255) NOT NULL,
-    slug            VARCHAR(255) NOT NULL,
-    address         VARCHAR(500) NULL,
-    city            VARCHAR(255) NULL,
-    country         VARCHAR(255) NULL,
-    postal_code     VARCHAR(20) NULL,
-    latitude        DECIMAL(10, 7) NULL,
-    longitude       DECIMAL(10, 7) NULL,
-    cuisine_type    VARCHAR(100) NULL,
-    price_range     ENUM('$', '$$', '$$$', '$$$$') NULL,
-    phone           VARCHAR(50) NULL,
-    website         VARCHAR(500) NULL,
-    external_urls   JSON NULL,
-    created_at      TIMESTAMP NULL,
-    updated_at      TIMESTAMP NULL
+    id                  BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    name                VARCHAR(255) NOT NULL,
+    name_normalized     VARCHAR(255) NOT NULL,          -- Sin acentos, minúsculas
+    slug                VARCHAR(255) NOT NULL,
+    address             VARCHAR(500) NULL,
+    address_normalized  VARCHAR(500) NULL,              -- Minúsculas, trim
+    city                VARCHAR(255) NULL,
+    country             VARCHAR(255) NULL,
+    postal_code         VARCHAR(20) NULL,
+    latitude            DECIMAL(10, 7) NULL,
+    longitude           DECIMAL(10, 7) NULL,
+    cuisine_type        VARCHAR(100) NULL,
+    price_range         ENUM('$', '$$', '$$$', '$$$$') NULL,
+    phone               VARCHAR(50) NULL,
+    website             VARCHAR(500) NULL,
+    external_urls       JSON NULL,
+    created_at          TIMESTAMP NULL,
+    updated_at          TIMESTAMP NULL
 );
 
 -- Índices
 CREATE INDEX idx_restaurants_name ON restaurants(name);
+CREATE INDEX idx_restaurants_name_normalized ON restaurants(name_normalized);
+CREATE INDEX idx_restaurants_address_normalized ON restaurants(address_normalized);
 CREATE INDEX idx_restaurants_slug ON restaurants(slug);
 CREATE INDEX idx_restaurants_city ON restaurants(city);
 CREATE INDEX idx_restaurants_cuisine ON restaurants(cuisine_type);
@@ -241,6 +287,61 @@ CREATE FULLTEXT INDEX ft_restaurants_search ON restaurants(name, address, city);
 - `hasMany(VisitWish)`
 
 **Migración**: `2024_01_03_000000_create_restaurants_table.php`
+
+---
+
+### 5.1. `duplicate_restaurant_candidates` - Detección de Duplicados
+
+**Propósito**: Detectar y gestionar restaurantes duplicados para mantener el catálogo limpio
+
+**Campos**:
+```sql
+CREATE TABLE duplicate_restaurant_candidates (
+    id                      BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    restaurant_a_id         BIGINT UNSIGNED NOT NULL,
+    restaurant_b_id         BIGINT UNSIGNED NOT NULL,
+    similarity_score        DECIMAL(5, 2) NOT NULL,      -- 0.00 - 100.00
+    detection_method        VARCHAR(50) NOT NULL,         -- 'name', 'address', 'location', 'manual'
+    status                  ENUM('pending', 'confirmed_duplicate', 'not_duplicate', 'merged') DEFAULT 'pending',
+    reviewed_by_admin_id    BIGINT UNSIGNED NULL,
+    merged_into_id          BIGINT UNSIGNED NULL,        -- ID del restaurante final si se fusionó
+    reviewed_at             TIMESTAMP NULL,
+    created_at              TIMESTAMP NULL,
+    updated_at              TIMESTAMP NULL,
+
+    FOREIGN KEY (restaurant_a_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    FOREIGN KEY (restaurant_b_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by_admin_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (merged_into_id) REFERENCES restaurants(id) ON DELETE SET NULL,
+
+    UNIQUE KEY unique_pair (restaurant_a_id, restaurant_b_id)
+);
+
+-- Índices
+CREATE INDEX idx_duplicates_status ON duplicate_restaurant_candidates(status);
+CREATE INDEX idx_duplicates_score ON duplicate_restaurant_candidates(similarity_score);
+CREATE INDEX idx_duplicates_method ON duplicate_restaurant_candidates(detection_method);
+```
+
+**Estados**:
+- `pending`: Pendiente de revisión
+- `confirmed_duplicate`: Confirmado como duplicado (listo para fusionar)
+- `not_duplicate`: Confirmado que NO son duplicados
+- `merged`: Ya fusionados
+
+**Métodos de detección**:
+- `name`: Similar nombre normalizado
+- `address`: Similar dirección normalizada
+- `location`: Cercanía geográfica (lat/lng)
+- `manual`: Reportado manualmente
+
+**Relaciones**:
+- `belongsTo(Restaurant, 'restaurant_a_id')`
+- `belongsTo(Restaurant, 'restaurant_b_id')`
+- `belongsTo(User, 'reviewed_by_admin_id')`
+- `belongsTo(Restaurant, 'merged_into_id')`
+
+**Migración**: `2024_01_03_100000_create_duplicate_restaurant_candidates_table.php`
 
 ---
 

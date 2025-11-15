@@ -883,6 +883,389 @@ class ReviewRepository implements ReviewRepositoryInterface
 
 ---
 
+## 🌍 PATRÓN: CATÁLOGO GLOBAL DE RESTAURANTES
+
+### Problema
+Múltiples redes independientes generan duplicados del mismo restaurante físico, dificultando:
+- Análisis de datos globales
+- Rankings unificados
+- Detección de tendencias
+- Optimización de almacenamiento
+
+### Solución
+**Catálogo Global Único**: Los restaurantes son compartidos entre TODAS las redes.
+
+### Características Clave
+
+#### 1. Separación de Datos Públicos y Privados
+
+```
+PÚBLICOS (compartidos):
+├── Restaurante
+│   ├── ID
+│   ├── Nombre
+│   ├── Dirección
+│   ├── Coordenadas
+│   ├── Tipo de cocina
+│   └── Campos normalizados
+└── (Un solo registro)
+
+PRIVADOS (por red):
+├── Reviews
+│   ├── network_id
+│   ├── restaurant_id → apunta al catálogo global
+│   ├── user_id
+│   └── datos privados
+└── VisitWishes
+    ├── network_id
+    ├── restaurant_id → apunta al catálogo global
+    └── user_id
+```
+
+#### 2. Normalización Automática
+
+**Problema**: "El Bulli", "el bulli", "El Bullí" son el mismo restaurante.
+
+**Solución**: Campos normalizados automáticos.
+
+```php
+// Al guardar un restaurante
+$restaurant = new Restaurant();
+$restaurant->name = "El Bullí";
+$restaurant->name_normalized = normalize($restaurant->name);
+// → "el bulli" (sin acentos, minúsculas)
+
+$restaurant->address = "  Cala Montjoi, s/n  ";
+$restaurant->address_normalized = normalize($restaurant->address);
+// → "cala montjoi s/n" (trimmed, minúsculas)
+```
+
+**Implementación**:
+
+```php
+// app/Services/RestaurantNormalizationService.php
+class RestaurantNormalizationService
+{
+    public function normalizeName(string $name): string
+    {
+        // 1. Minúsculas
+        $normalized = mb_strtolower($name, 'UTF-8');
+
+        // 2. Quitar acentos
+        $normalized = $this->removeAccents($normalized);
+
+        // 3. Quitar caracteres especiales
+        $normalized = preg_replace('/[^a-z0-9\s\-]/', '', $normalized);
+
+        // 4. Normalizar espacios
+        $normalized = preg_replace('/\s+/', ' ', $normalized);
+
+        return trim($normalized);
+    }
+
+    public function normalizeAddress(string $address): string
+    {
+        $normalized = mb_strtolower($address, 'UTF-8');
+        $normalized = preg_replace('/\s+/', ' ', $normalized);
+        return trim($normalized);
+    }
+
+    private function removeAccents(string $string): string
+    {
+        $transliteration = [
+            'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
+            'ñ' => 'n', 'ü' => 'u',
+            'Á' => 'a', 'É' => 'e', 'Í' => 'i', 'Ó' => 'o', 'Ú' => 'u',
+            'Ñ' => 'n', 'Ü' => 'u',
+        ];
+
+        return strtr($string, $transliteration);
+    }
+}
+```
+
+**Model Observer** (para automatizar):
+
+```php
+// app/Observers/RestaurantObserver.php
+class RestaurantObserver
+{
+    public function __construct(
+        private RestaurantNormalizationService $normalizationService
+    ) {}
+
+    public function saving(Restaurant $restaurant): void
+    {
+        if ($restaurant->isDirty('name')) {
+            $restaurant->name_normalized =
+                $this->normalizationService->normalizeName($restaurant->name);
+        }
+
+        if ($restaurant->isDirty('address')) {
+            $restaurant->address_normalized =
+                $this->normalizationService->normalizeAddress($restaurant->address);
+        }
+    }
+}
+```
+
+#### 3. Detección de Duplicados
+
+**Estrategia Multi-Método**:
+
+```php
+// app/Services/DuplicateDetectionService.php
+class DuplicateDetectionService
+{
+    /**
+     * Encuentra restaurantes similares
+     * Retorna candidatos con score de similitud
+     */
+    public function findSimilarRestaurants(array $data): Collection
+    {
+        $candidates = collect();
+
+        // Método 1: Nombre exacto normalizado
+        $exactMatches = Restaurant::where('name_normalized', $data['name_normalized'])
+            ->get();
+        $exactMatches->each(fn($r) => $candidates->push([
+            'restaurant' => $r,
+            'score' => 100,
+            'method' => 'exact_name'
+        ]));
+
+        // Método 2: Levenshtein (similitud de strings)
+        $similarNames = Restaurant::whereRaw(
+            "LEVENSHTEIN(name_normalized, ?) <= 3",
+            [$data['name_normalized']]
+        )->get();
+
+        $similarNames->each(function($r) use ($candidates, $data) {
+            $distance = levenshtein(
+                $r->name_normalized,
+                $data['name_normalized']
+            );
+            $score = max(0, 100 - ($distance * 10));
+
+            $candidates->push([
+                'restaurant' => $r,
+                'score' => $score,
+                'method' => 'similar_name'
+            ]);
+        });
+
+        // Método 3: Proximidad geográfica + nombre similar
+        if (isset($data['latitude']) && isset($data['longitude'])) {
+            $nearby = $this->findNearbyRestaurants(
+                $data['latitude'],
+                $data['longitude'],
+                0.5 // 500m radius
+            );
+
+            $nearby->each(function($r) use ($candidates, $data) {
+                $nameScore = $this->calculateNameSimilarity(
+                    $r->name_normalized,
+                    $data['name_normalized']
+                );
+
+                if ($nameScore > 50) {
+                    $candidates->push([
+                        'restaurant' => $r,
+                        'score' => $nameScore,
+                        'method' => 'location_name'
+                    ]);
+                }
+            });
+        }
+
+        // Deduplicar y ordenar por score
+        return $candidates
+            ->unique(fn($item) => $item['restaurant']->id)
+            ->sortByDesc('score')
+            ->filter(fn($item) => $item['score'] >= 80);
+    }
+
+    /**
+     * Calcula distancia Haversine entre dos puntos
+     */
+    private function findNearbyRestaurants(float $lat, float $lng, float $radiusKm): Collection
+    {
+        // Fórmula Haversine
+        $sql = "
+            SELECT *,
+                (6371 * acos(
+                    cos(radians(?)) * cos(radians(latitude)) *
+                    cos(radians(longitude) - radians(?)) +
+                    sin(radians(?)) * sin(radians(latitude))
+                )) AS distance
+            FROM restaurants
+            HAVING distance < ?
+            ORDER BY distance
+        ";
+
+        return Restaurant::fromQuery($sql, [$lat, $lng, $lat, $radiusKm]);
+    }
+}
+```
+
+#### 4. Flujo de Creación con Detección
+
+```php
+// app/Services/RestaurantService.php
+class RestaurantService
+{
+    public function __construct(
+        private RestaurantNormalizationService $normalization,
+        private DuplicateDetectionService $duplicateDetection
+    ) {}
+
+    public function createRestaurant(array $data): Restaurant|array
+    {
+        // 1. Normalizar datos
+        $normalized = [
+            'name_normalized' => $this->normalization->normalizeName($data['name']),
+            'address_normalized' => $this->normalization->normalizeAddress($data['address'] ?? ''),
+        ];
+
+        // 2. Buscar duplicados
+        $duplicates = $this->duplicateDetection->findSimilarRestaurants(
+            array_merge($data, $normalized)
+        );
+
+        // 3. Si hay duplicados con score alto, retornar para confirmación
+        if ($duplicates->isNotEmpty()) {
+            return [
+                'duplicates_found' => true,
+                'candidates' => $duplicates,
+                'original_data' => $data,
+            ];
+        }
+
+        // 4. No hay duplicados, crear restaurante
+        return Restaurant::create(array_merge($data, $normalized));
+    }
+}
+```
+
+#### 5. Proceso de Fusión (Super Admin)
+
+```php
+// app/Services/RestaurantMergeService.php
+class RestaurantMergeService
+{
+    public function mergeRestaurants(Restaurant $keep, Restaurant $remove): void
+    {
+        DB::beginTransaction();
+        try {
+            // 1. Migrar todas las reviews
+            Review::where('restaurant_id', $remove->id)
+                ->update(['restaurant_id' => $keep->id]);
+
+            // 2. Migrar visit wishes
+            VisitWish::where('restaurant_id', $remove->id)
+                ->update(['restaurant_id' => $keep->id]);
+
+            // 3. Actualizar candidato de duplicado
+            DuplicateRestaurantCandidate::where('restaurant_a_id', $remove->id)
+                ->orWhere('restaurant_b_id', $remove->id)
+                ->update([
+                    'status' => 'merged',
+                    'merged_into_id' => $keep->id,
+                    'merged_at' => now(),
+                ]);
+
+            // 4. Soft delete del restaurante removido
+            $remove->delete();
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+}
+```
+
+### Beneficios
+
+✅ **Deduplicación**: Un restaurante = un registro
+✅ **Rankings globales**: Agregación de datos sin romper privacidad
+✅ **Eficiencia**: Menos almacenamiento, búsquedas más rápidas
+✅ **Consistencia**: Datos normalizados y limpios
+✅ **Trazabilidad**: Historial de fusiones mediante soft deletes
+
+### Limitaciones
+
+⚠️ **Privacidad**: Las reviews siguen siendo privadas por red
+⚠️ **Conflictos**: Si dos redes tienen datos diferentes del mismo restaurante
+⚠️ **Moderación**: Requiere super admin para fusionar duplicados
+
+---
+
+## 🔄 PATRÓN: NORMALIZACIÓN DE DATOS
+
+### Principio
+**Datos normalizados = Búsquedas confiables + Deduplicación efectiva**
+
+### Campos Normalizados
+
+| Campo Original | Campo Normalizado | Transformación |
+|---------------|-------------------|----------------|
+| `name` | `name_normalized` | Minúsculas, sin acentos, sin especiales |
+| `address` | `address_normalized` | Minúsculas, trim, normalizar espacios |
+
+### Estrategia de Implementación
+
+#### 1. Observer Pattern
+Los modelos se normalizan automáticamente al guardar.
+
+```php
+// app/Providers/EventServiceProvider.php
+protected $observers = [
+    Restaurant::class => [RestaurantObserver::class],
+];
+```
+
+#### 2. Service Layer
+Servicios dedicados para normalización compleja.
+
+```php
+RestaurantNormalizationService::normalizeName()
+RestaurantNormalizationService::normalizeAddress()
+```
+
+#### 3. Database Indexes
+Índices en campos normalizados para búsquedas rápidas.
+
+```php
+// Migration
+$table->index('name_normalized');
+$table->index('address_normalized');
+```
+
+### Casos de Uso
+
+**Búsqueda insensible a mayúsculas/acentos**:
+```php
+Restaurant::where('name_normalized', normalize($search))->get();
+```
+
+**Detección de duplicados**:
+```php
+$existing = Restaurant::where('name_normalized', $normalized)
+    ->where('address_normalized', $normalizedAddress)
+    ->first();
+```
+
+**Autocompletado**:
+```php
+Restaurant::where('name_normalized', 'LIKE', normalize($query) . '%')
+    ->limit(10)
+    ->get();
+```
+
+---
+
 ## 🎯 DECISIONES ARQUITECTÓNICAS
 
 ### ¿Por qué Laravel 11?

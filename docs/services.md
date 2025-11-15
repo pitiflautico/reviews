@@ -221,15 +221,24 @@ public function store(
 
 **Responsabilidades**:
 - Buscar restaurantes
-- Crear restaurantes
+- Crear restaurantes con detección de duplicados
 - Autocompletado
 - Obtener datos geográficos
+
+**Dependencias**:
+- `RestaurantNormalizationService`
+- `DuplicateDetectionService`
 
 **Métodos**:
 
 ```php
 class RestaurantService
 {
+    public function __construct(
+        private RestaurantNormalizationService $normalization,
+        private DuplicateDetectionService $duplicateDetection
+    ) {}
+
     /**
      * Busca restaurantes por término
      *
@@ -240,7 +249,7 @@ class RestaurantService
     public function searchRestaurants(string $query, int $limit = 10): Collection;
 
     /**
-     * Autocompletado de restaurantes
+     * Autocompletado de restaurantes (usa campos normalizados)
      *
      * @param string $query
      * @return array
@@ -248,15 +257,26 @@ class RestaurantService
     public function autocomplete(string $query): array;
 
     /**
-     * Crea un nuevo restaurante
+     * Crea un nuevo restaurante con detección de duplicados
+     *
+     * IMPORTANTE: Puede retornar Restaurant O array con candidatos duplicados
+     *
+     * @param array $data
+     * @return Restaurant|array Si hay duplicados: ['duplicates_found' => true, 'candidates' => ...]
+     */
+    public function createRestaurant(array $data): Restaurant|array;
+
+    /**
+     * Fuerza la creación sin verificar duplicados
+     * (después de que el usuario confirme que no es duplicado)
      *
      * @param array $data
      * @return Restaurant
      */
-    public function createRestaurant(array $data): Restaurant;
+    public function forceCreateRestaurant(array $data): Restaurant;
 
     /**
-     * Obtiene coordenadas de una dirección
+     * Obtiene coordenadas de una dirección (geocoding)
      *
      * @param string $address
      * @return array ['lat' => float, 'lng' => float]
@@ -264,7 +284,7 @@ class RestaurantService
     public function geocodeAddress(string $address): array;
 
     /**
-     * Obtiene restaurantes en un área
+     * Obtiene restaurantes en un área (usa Haversine)
      *
      * @param float $lat
      * @param float $lng
@@ -272,6 +292,39 @@ class RestaurantService
      * @return Collection
      */
     public function getRestaurantsNearby(float $lat, float $lng, float $radius): Collection;
+}
+```
+
+**Ejemplo de uso con duplicados**:
+
+```php
+// En RestaurantController
+public function store(StoreRestaurantRequest $request, RestaurantService $service)
+{
+    $result = $service->createRestaurant($request->validated());
+
+    // Verificar si encontró duplicados
+    if (is_array($result) && $result['duplicates_found']) {
+        return view('restaurants.duplicate-check', [
+            'candidates' => $result['candidates'],
+            'originalData' => $result['original_data']
+        ]);
+    }
+
+    // No hay duplicados, restaurante creado
+    return redirect()
+        ->route('restaurants.show', $result)
+        ->with('success', 'Restaurante creado');
+}
+
+// Si el usuario confirma que NO es duplicado
+public function confirmCreate(Request $request, RestaurantService $service)
+{
+    $restaurant = $service->forceCreateRestaurant($request->all());
+
+    return redirect()
+        ->route('restaurants.show', $restaurant)
+        ->with('success', 'Restaurante creado');
 }
 ```
 
@@ -483,6 +536,316 @@ class VisitWishService
      */
     public function removeFromWishlist(VisitWish $wish): bool;
 }
+```
+
+---
+
+### 8. RestaurantNormalizationService
+
+**Ubicación**: `app/Services/RestaurantNormalizationService.php`
+
+**Responsabilidades**:
+- Normalizar nombres de restaurantes
+- Normalizar direcciones
+- Eliminar acentos y caracteres especiales
+- Preparar datos para búsquedas y comparaciones
+
+**Métodos**:
+
+```php
+class RestaurantNormalizationService
+{
+    /**
+     * Normaliza el nombre de un restaurante
+     *
+     * Proceso:
+     * 1. Convierte a minúsculas
+     * 2. Elimina acentos (á → a, ñ → n)
+     * 3. Elimina caracteres especiales
+     * 4. Normaliza espacios múltiples a uno
+     * 5. Trim
+     *
+     * @param string $name
+     * @return string
+     *
+     * @example "El Bullí  Restaurant" → "el bulli restaurant"
+     */
+    public function normalizeName(string $name): string;
+
+    /**
+     * Normaliza la dirección
+     *
+     * Proceso:
+     * 1. Convierte a minúsculas
+     * 2. Normaliza espacios
+     * 3. Trim
+     *
+     * @param string $address
+     * @return string
+     *
+     * @example "  Calle Mayor, 123  " → "calle mayor 123"
+     */
+    public function normalizeAddress(string $address): string;
+
+    /**
+     * Elimina acentos de un string
+     *
+     * @param string $string
+     * @return string
+     */
+    private function removeAccents(string $string): string;
+}
+```
+
+**Ejemplo de uso**:
+
+```php
+$service = app(RestaurantNormalizationService::class);
+
+$normalized = $service->normalizeName("El Bullí");
+// "el bulli"
+
+$normalizedAddress = $service->normalizeAddress("  Av. Diagonal, 123  ");
+// "av diagonal 123"
+```
+
+**Integración con Observer**:
+
+```php
+// app/Observers/RestaurantObserver.php
+class RestaurantObserver
+{
+    public function __construct(
+        private RestaurantNormalizationService $normalizationService
+    ) {}
+
+    public function saving(Restaurant $restaurant): void
+    {
+        // Normalización automática al guardar
+        if ($restaurant->isDirty('name')) {
+            $restaurant->name_normalized =
+                $this->normalizationService->normalizeName($restaurant->name);
+        }
+
+        if ($restaurant->isDirty('address')) {
+            $restaurant->address_normalized =
+                $this->normalizationService->normalizeAddress($restaurant->address);
+        }
+    }
+}
+```
+
+---
+
+### 9. DuplicateDetectionService
+
+**Ubicación**: `app/Services/DuplicateDetectionService.php`
+
+**Responsabilidades**:
+- Detectar restaurantes duplicados
+- Calcular scores de similitud
+- Usar múltiples métodos de detección
+- Registrar candidatos en BD
+
+**Métodos**:
+
+```php
+class DuplicateDetectionService
+{
+    /**
+     * Encuentra restaurantes similares
+     *
+     * Usa 3 métodos:
+     * 1. Nombre normalizado exacto (score 100)
+     * 2. Levenshtein distance (score basado en distancia)
+     * 3. Proximidad geográfica + nombre similar
+     *
+     * @param array $data Debe incluir name_normalized y opcionalmente lat/lng
+     * @return Collection Items con ['restaurant' => Restaurant, 'score' => int, 'method' => string]
+     */
+    public function findSimilarRestaurants(array $data): Collection;
+
+    /**
+     * Calcula similitud entre dos nombres
+     *
+     * @param string $name1
+     * @param string $name2
+     * @return int Score 0-100
+     */
+    public function calculateNameSimilarity(string $name1, string $name2): int;
+
+    /**
+     * Encuentra restaurantes cercanos usando Haversine
+     *
+     * @param float $lat
+     * @param float $lng
+     * @param float $radiusKm
+     * @return Collection
+     */
+    private function findNearbyRestaurants(float $lat, float $lng, float $radiusKm): Collection;
+
+    /**
+     * Registra candidato de duplicado en BD
+     *
+     * @param Restaurant $restaurantA
+     * @param Restaurant $restaurantB
+     * @param int $score
+     * @param string $method
+     * @return DuplicateRestaurantCandidate
+     */
+    public function registerCandidate(
+        Restaurant $restaurantA,
+        Restaurant $restaurantB,
+        int $score,
+        string $method
+    ): DuplicateRestaurantCandidate;
+}
+```
+
+**Ejemplo de uso**:
+
+```php
+$service = app(DuplicateDetectionService::class);
+
+$data = [
+    'name' => 'El Bulli',
+    'name_normalized' => 'el bulli',
+    'latitude' => 42.2486,
+    'longitude' => 3.2311
+];
+
+$duplicates = $service->findSimilarRestaurants($data);
+
+foreach ($duplicates as $item) {
+    echo "{$item['restaurant']->name}: {$item['score']}% ({$item['method']})\n";
+}
+
+// Output:
+// El Bullí: 100% (exact_name)
+// El Bulli Restaurant: 90% (similar_name)
+// El Buli: 85% (similar_name)
+```
+
+**Thresholds recomendados**:
+- **Score >= 95%**: Casi seguro duplicado
+- **Score 80-94%**: Muy probable duplicado, revisar
+- **Score < 80%**: Probablemente no es duplicado
+
+---
+
+### 10. RestaurantMergeService
+
+**Ubicación**: `app/Services/RestaurantMergeService.php`
+
+**Responsabilidades**:
+- Fusionar restaurantes duplicados
+- Migrar reviews y visit_wishes
+- Mantener trazabilidad
+- Solo accesible para Super Admin
+
+**Métodos**:
+
+```php
+class RestaurantMergeService
+{
+    /**
+     * Fusiona dos restaurantes
+     *
+     * Proceso:
+     * 1. Migrar todas las reviews de $remove a $keep
+     * 2. Migrar todos los visit_wishes de $remove a $keep
+     * 3. Actualizar candidatos de duplicados
+     * 4. Soft delete del restaurante removido
+     *
+     * IMPORTANTE: Usa transacción, todo o nada
+     *
+     * @param Restaurant $keep Restaurante que se mantiene
+     * @param Restaurant $remove Restaurante que se elimina
+     * @return void
+     * @throws \Exception Si falla alguna operación
+     */
+    public function mergeRestaurants(Restaurant $keep, Restaurant $remove): void;
+
+    /**
+     * Valida que la fusión es segura
+     *
+     * @param Restaurant $keep
+     * @param Restaurant $remove
+     * @return bool
+     */
+    public function canMerge(Restaurant $keep, Restaurant $remove): bool;
+
+    /**
+     * Obtiene preview de la fusión
+     *
+     * @param Restaurant $keep
+     * @param Restaurant $remove
+     * @return array Estadísticas de lo que se migrará
+     */
+    public function getMergePreview(Restaurant $keep, Restaurant $remove): array;
+
+    /**
+     * Revierte una fusión (si es posible)
+     *
+     * @param Restaurant $restaurant Restaurante que fue eliminado
+     * @return Restaurant
+     */
+    public function revertMerge(Restaurant $restaurant): Restaurant;
+}
+```
+
+**Ejemplo de uso (Controller de Super Admin)**:
+
+```php
+// app/Http/Controllers/Admin/RestaurantMergeController.php
+class RestaurantMergeController extends Controller
+{
+    public function preview(
+        Restaurant $keep,
+        Restaurant $remove,
+        RestaurantMergeService $service
+    ) {
+        $preview = $service->getMergePreview($keep, $remove);
+
+        return view('admin.restaurants.merge-preview', [
+            'keep' => $keep,
+            'remove' => $remove,
+            'preview' => $preview
+        ]);
+    }
+
+    public function merge(
+        Restaurant $keep,
+        Restaurant $remove,
+        RestaurantMergeService $service
+    ) {
+        // Verificar que el usuario es super admin
+        $this->authorize('merge-restaurants');
+
+        try {
+            $service->mergeRestaurants($keep, $remove);
+
+            return redirect()
+                ->route('admin.restaurants.index')
+                ->with('success', 'Restaurantes fusionados correctamente');
+        } catch (\Exception $e) {
+            return back()
+                ->with('error', 'Error al fusionar: ' . $e->getMessage());
+        }
+    }
+}
+```
+
+**Preview response example**:
+
+```php
+[
+    'reviews_to_migrate' => 15,
+    'visit_wishes_to_migrate' => 3,
+    'total_reviews_after' => 42, // $keep->reviews->count() + 15
+    'networks_affected' => [1, 3, 5, 8],
+    'safe_to_merge' => true
+]
 ```
 
 ---

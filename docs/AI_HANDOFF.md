@@ -32,13 +32,14 @@ Para verificar la fase actual, revisa:
 /docs/
 ├── AI_HANDOFF.md          ← ESTÁS AQUÍ (lee esto primero)
 ├── PROJECT_STRUCTURE.md   ← Mapa completo de ubicaciones
+├── DEVELOPMENT_GUIDE.md   ← Guía de desarrollo
 ├── architecture.md        ← Decisiones de arquitectura
 ├── database.md            ← Esquemas y relaciones
+├── GLOBAL_RESTAURANTS.md  ← Sistema de catálogo global ⭐
 ├── services.md            ← Servicios disponibles
 ├── flows.md               ← Flujos de usuario
 ├── skins.md               ← Sistema de temas
-├── endpoints.md           ← API y rutas
-└── DEVELOPMENT_GUIDE.md   ← Guía de desarrollo
+└── endpoints.md           ← API y rutas
 ```
 
 ### Código Laravel
@@ -115,10 +116,19 @@ Response (Resource o View)
 - Define roles: owner, admin, member
 - Controla permisos dentro de la red
 
-### 3. RESTAURANTES (Restaurants)
-- Pueden estar en múltiples redes
+### 3. RESTAURANTES (Restaurants) - ⭐ SISTEMA GLOBAL
+
+**CRÍTICO**: Los restaurantes son **GLOBALES** - un catálogo unificado para TODAS las redes.
+
+- **NO se duplican por red**: Un solo registro global compartido
+- **Normalización automática**: `name_normalized`, `address_normalized`
+- **Detección de duplicados**: Sistema automático con similarity score
+- **Fusión de duplicados**: Super admin puede fusionar registros
+- **Rankings globales**: Posible sin romper privacidad de redes
 - Tienen coordenadas (lat/lng) para mapas
-- Búsqueda con autocompletado
+- Búsqueda global con autocompletado
+
+**Ver más**: `/docs/GLOBAL_RESTAURANTS.md`
 
 ### 4. RESEÑAS (Reviews)
 - Pertenecen a una red
@@ -129,6 +139,27 @@ Response (Resource o View)
 - Cambian la apariencia sin tocar lógica
 - Configurado en `.env`: `APP_SKIN=listox`
 - Función helper: `skin('path')`
+
+### 6. INVITACIONES (Invitations) - 🔒 CONTROL ESTRICTO
+
+**Sistema de permisos por red**: Cada red controla quién puede invitar nuevos miembros.
+
+- **Campo clave**: `allow_member_invites` (boolean, default: false)
+- **Lógica de permisos**:
+  ```
+  SI allow_member_invites = TRUE
+    → Cualquier miembro puede invitar
+  SI allow_member_invites = FALSE
+    → SOLO owner/admin pueden invitar
+  ```
+
+**Estados de invitación**:
+- `pending`: Enviada, esperando respuesta
+- `accepted`: Usuario se unió a la red
+- `rejected`: Usuario rechazó la invitación
+- `cancelled`: Cancelada por quien invitó
+
+**Importante**: Cada invitación tiene un `token` único para seguridad.
 
 ---
 
@@ -413,10 +444,11 @@ Acceder: `/telescope`
 3. **DEVELOPMENT_GUIDE.md** ← Guía paso a paso
 4. **architecture.md** ← Decisiones arquitectónicas
 5. **database.md** ← Esquemas de BD
-6. **services.md** ← Servicios disponibles
-7. **flows.md** ← Flujos de usuario
-8. **skins.md** ← Sistema de temas
-9. **endpoints.md** ← Rutas y APIs
+6. **GLOBAL_RESTAURANTS.md** ← Sistema de catálogo global ⭐
+7. **services.md** ← Servicios disponibles
+8. **flows.md** ← Flujos de usuario
+9. **skins.md** ← Sistema de temas
+10. **endpoints.md** ← Rutas y APIs
 
 ### Enlaces Laravel
 

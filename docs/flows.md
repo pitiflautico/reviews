@@ -245,12 +245,42 @@ Usuario en Red
               │ - Dirección      │
               │ - Tipo cocina    │
               │ - Precio         │
+              │ - Lat/Lng (opt)  │
               └────────┬─────────┘
                        │
                        ↓ Submit
+              ┌──────────────────────────────┐
+              │ RestaurantNormalizationService│
+              │ .normalizeName()              │
+              │ .normalizeAddress()           │
+              └────────┬──────────────────────┘
+                       │
+                       ↓
+              ┌──────────────────────────────┐
+              │ DuplicateDetectionService     │
+              │ .findSimilarRestaurants()     │
+              └────────┬──────────────────────┘
+                       │
+                       ├──→ Duplicados encontrados (score > 80%)
+                       │    ↓
+                       │    ┌──────────────────┐
+                       │    │ Modal con lista  │
+                       │    │ "¿Es alguno de   │
+                       │    │  estos?"         │
+                       │    └────────┬─────────┘
+                       │             │
+                       │             ├──→ Selecciona uno → Usar existente
+                       │             │
+                       │             └──→ "No, es otro" → Crear nuevo
+                       │                  ↓
+                       │                  (continúa abajo)
+                       │
+                       ↓ No hay duplicados (score < 80%)
               ┌──────────────────┐
               │ RestaurantService│
               │ .createRestaurant│
+              │ (guarda con      │
+              │  normalized)     │
               └────────┬─────────┘
                        │
                        ↓
@@ -538,6 +568,201 @@ Request recibido
 ┌──────────────────┐
 │ Ejecutar acción  │
 └──────────────────┘
+```
+
+---
+
+## 10. FLUJO DE FUSIÓN DE RESTAURANTES DUPLICADOS (Super Admin)
+
+```
+Super Admin
+        │
+        ↓ Accede panel admin
+┌──────────────────┐
+│ Lista candidatos │
+│ duplicados       │
+│ (tabla           │
+│ duplicate_       │
+│ restaurant_      │
+│ candidates)      │
+└────────┬─────────┘
+         │
+         ↓ Ordenados por similarity_score DESC
+┌──────────────────┐
+│ Muestra pares    │
+│ - Restaurant A   │
+│ - Restaurant B   │
+│ - Score: 95%     │
+│ - Método         │
+└────────┬─────────┘
+         │
+         ↓ Click par para revisar
+┌──────────────────┐
+│ Vista comparación│
+│                  │
+│ [A]          [B] │
+│ Nombre       Nom │
+│ Dirección    Dir │
+│ Coordenadas  Coo │
+│ # Reviews    # R │
+│ Avg Rating   Avg │
+└────────┬─────────┘
+         │
+         ├──→ Marcar "No es duplicado"
+         │    ↓
+         │    ┌──────────────────┐
+         │    │ Status =         │
+         │    │ 'not_duplicate'  │
+         │    └──────────────────┘
+         │
+         ├──→ Confirmar "Es duplicado"
+         │    ↓
+         │    ┌──────────────────┐
+         │    │ Elegir principal │
+         │    │ - Mantener A     │
+         │    │ - Mantener B     │
+         │    │ - Fusionar datos │
+         │    └────────┬─────────┘
+         │             │
+         │             ↓ Confirmar fusión
+         │    ┌──────────────────────────┐
+         │    │ RestaurantMergeService   │
+         │    │ .mergeRestaurants()      │
+         │    └────────┬─────────────────┘
+         │             │
+         │             ↓
+         │    ┌──────────────────────────┐
+         │    │ 1. Migrar reviews de B   │
+         │    │    a restaurant_id = A   │
+         │    └────────┬─────────────────┘
+         │             │
+         │             ↓
+         │    ┌──────────────────────────┐
+         │    │ 2. Migrar visit_wishes   │
+         │    │    de B a A              │
+         │    └────────┬─────────────────┘
+         │             │
+         │             ↓
+         │    ┌──────────────────────────┐
+         │    │ 3. Soft delete           │
+         │    │    restaurant B          │
+         │    └────────┬─────────────────┘
+         │             │
+         │             ↓
+         │    ┌──────────────────────────┐
+         │    │ 4. Actualizar candidate  │
+         │    │    status = 'merged'     │
+         │    │    merged_into_id = A    │
+         │    └────────┬─────────────────┘
+         │             │
+         │             ↓
+         │    ┌──────────────────┐
+         │    │ Fusión completa  │
+         │    └──────────────────┘
+         │
+         └──→ Ignorar
+              ↓
+              Siguiente par en la lista
+```
+
+**Notas importantes**:
+- Solo accesible para Super Admin
+- Se mantiene el historial (soft delete, no hard delete)
+- Los usuarios NO pierden sus reseñas, solo cambia el restaurant_id
+- El campo `merged_into_id` permite rastrear fusiones
+
+---
+
+## 11. FLUJO DE INVITACIÓN CON PERMISOS DINÁMICOS
+
+```
+Usuario quiere invitar
+        │
+        ↓ Click "Invitar miembro"
+┌──────────────────┐
+│ Verificar        │
+│ permisos         │
+└────────┬─────────┘
+         │
+         ├──→ ES owner/admin
+         │    ↓
+         │    ┌──────────────────┐
+         │    │ Puede invitar    │
+         │    └────────┬─────────┘
+         │             │
+         │             ↓
+         │    (continúa con form invitación)
+         │
+         └──→ ES member
+              ↓
+              ┌──────────────────────────┐
+              │ Consultar campo          │
+              │ network.allow_member_    │
+              │ invites                  │
+              └────────┬─────────────────┘
+                       │
+                       ├──→ allow_member_invites = TRUE
+                       │    ↓
+                       │    ┌──────────────────┐
+                       │    │ Puede invitar    │
+                       │    └────────┬─────────┘
+                       │             │
+                       │             ↓
+                       │    ┌──────────────────┐
+                       │    │ Form Invitación  │
+                       │    │ - Email          │
+                       │    │ - Rol forzado a  │
+                       │    │   'member'       │
+                       │    └────────┬─────────┘
+                       │             │
+                       │             ↓
+                       │    ┌──────────────────┐
+                       │    │ InvitationService│
+                       │    │ .sendInvite()    │
+                       │    └────────┬─────────┘
+                       │             │
+                       │             ↓
+                       │    ┌──────────────────┐
+                       │    │ Invitation saved │
+                       │    │ Email enviado    │
+                       │    └──────────────────┘
+                       │
+                       └──→ allow_member_invites = FALSE
+                            ↓
+                            ┌──────────────────┐
+                            │ 403 Forbidden    │
+                            │ "Solo admins     │
+                            │  pueden invitar" │
+                            └──────────────────┘
+```
+
+**Lógica de autorización**:
+
+```php
+// En NetworkPolicy.php
+
+public function inviteMembers(User $user, Network $network): bool
+{
+    $membership = $network->memberships()
+        ->where('user_id', $user->id)
+        ->first();
+
+    if (!$membership) {
+        return false; // No es miembro
+    }
+
+    // Owner y Admin SIEMPRE pueden
+    if (in_array($membership->role, ['owner', 'admin'])) {
+        return true;
+    }
+
+    // Member SOLO si la red lo permite
+    if ($membership->role === 'member') {
+        return $network->allow_member_invites === true;
+    }
+
+    return false;
+}
 ```
 
 ---
