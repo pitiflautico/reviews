@@ -10,6 +10,11 @@
                 @endif
             </div>
             <div class="flex gap-3">
+                <a href="{{ route('networks.members.index', $network) }}"
+                   class="inline-flex items-center px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-bold rounded-xl border border-gray-300 transition duration-200 shadow-sm">
+                    <x-icons.users class="mr-2" />
+                    Miembros
+                </a>
                 @if($memberRole === 'owner')
                     <a href="{{ route('networks.edit', $network) }}"
                        class="inline-flex items-center px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-bold rounded-xl border border-gray-300 transition duration-200 shadow-sm">

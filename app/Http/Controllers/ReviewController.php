@@ -55,18 +55,54 @@ class ReviewController extends Controller
             abort(403, 'No tienes acceso a esta red.');
         }
 
-        $validated = $request->validate([
-            'restaurant_id' => 'required|exists:restaurants,id',
+        // Validate based on whether creating new restaurant or using existing
+        $rules = [
             'rating' => 'required|integer|min:1|max:5',
             'comment' => 'required|string',
             'date_of_visit' => 'nullable|date',
             'meal_type' => 'nullable|in:breakfast,lunch,dinner',
+        ];
+
+        if ($request->input('restaurant_option') === 'new') {
+            // Creating new restaurant
+            $rules['restaurant_name'] = 'required|string|max:255';
+            $rules['restaurant_address'] = 'required|string|max:500';
+            $rules['restaurant_cuisine_type'] = 'required|string|max:100';
+            $rules['restaurant_city'] = 'nullable|string|max:100';
+            $rules['restaurant_latitude'] = 'nullable|numeric|between:-90,90';
+            $rules['restaurant_longitude'] = 'nullable|numeric|between:-180,180';
+        } else {
+            // Using existing restaurant
+            $rules['restaurant_id'] = 'required|exists:restaurants,id';
+        }
+
+        $validated = $request->validate($rules);
+
+        // Handle restaurant creation if needed
+        if ($request->input('restaurant_option') === 'new') {
+            $restaurant = Restaurant::create([
+                'name' => $validated['restaurant_name'],
+                'address' => $validated['restaurant_address'],
+                'cuisine_type' => $validated['restaurant_cuisine_type'],
+                'city' => $validated['restaurant_city'] ?? null,
+                'latitude' => $validated['restaurant_latitude'] ?? null,
+                'longitude' => $validated['restaurant_longitude'] ?? null,
+            ]);
+            $restaurantId = $restaurant->id;
+        } else {
+            $restaurantId = $validated['restaurant_id'];
+        }
+
+        // Create review
+        $review = Review::create([
+            'network_id' => $network->id,
+            'user_id' => Auth::id(),
+            'restaurant_id' => $restaurantId,
+            'rating' => $validated['rating'],
+            'comment' => $validated['comment'],
+            'date_of_visit' => $validated['date_of_visit'] ?? null,
+            'meal_type' => $validated['meal_type'] ?? null,
         ]);
-
-        $validated['network_id'] = $network->id;
-        $validated['user_id'] = Auth::id();
-
-        $review = Review::create($validated);
 
         return redirect()
             ->route('networks.reviews.show', [$network, $review])

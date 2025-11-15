@@ -32,6 +32,18 @@ Route::middleware('auth')->group(function () {
     // Network routes
     Route::resource('networks', NetworkController::class);
 
+    // Network member management routes
+    Route::get('networks/{network}/members', [App\Http\Controllers\NetworkMemberController::class, 'index'])
+        ->name('networks.members.index');
+    Route::get('networks/{network}/members/invite', [App\Http\Controllers\NetworkMemberController::class, 'invite'])
+        ->name('networks.members.invite');
+    Route::post('networks/{network}/members', [App\Http\Controllers\NetworkMemberController::class, 'store'])
+        ->name('networks.members.store');
+    Route::patch('networks/{network}/members/{user}/role', [App\Http\Controllers\NetworkMemberController::class, 'updateRole'])
+        ->name('networks.members.updateRole');
+    Route::delete('networks/{network}/members/{user}', [App\Http\Controllers\NetworkMemberController::class, 'destroy'])
+        ->name('networks.members.destroy');
+
     // Review routes (nested under networks)
     Route::resource('networks.reviews', App\Http\Controllers\ReviewController::class);
 
