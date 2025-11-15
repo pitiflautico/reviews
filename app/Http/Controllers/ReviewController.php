@@ -8,6 +8,9 @@ use App\Models\Review;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use Intervention\Image\Laravel\Facades\Image;
+use thiagoalessio\TesseractOCR\TesseractOCR;
 
 class ReviewController extends Controller
 {
@@ -118,12 +121,12 @@ class ReviewController extends Controller
             'meal_type' => $validated['meal_type'] ?? null,
         ]);
 
-        // Handle photo gallery upload
+        // Handle photo gallery upload with compression
         if ($request->hasFile('photos')) {
             foreach ($request->file('photos') as $index => $photo) {
-                $path = $photo->store('review-photos', 'public');
+                $compressedPath = $this->compressImage($photo, 'review-photos');
                 $review->photos()->create([
-                    'photo_url' => Storage::url($path),
+                    'photo_url' => $compressedPath,
                     'order' => $index,
                 ]);
             }
@@ -134,18 +137,26 @@ class ReviewController extends Controller
         $ocrDetectedPrice = null;
 
         if ($request->hasFile('ticket_photo')) {
-            $path = $request->file('ticket_photo')->store('ticket-photos', 'public');
-            $ticketPhotoUrl = Storage::url($path);
+            $ticketFile = $request->file('ticket_photo');
 
-            // Basic OCR simulation - In production, use Tesseract or Cloud Vision API
-            // For now, we'll use the manually entered price
-            $ocrDetectedPrice = $validated['price_amount'] ?? null;
+            // Save ticket photo with compression
+            $ticketPhotoUrl = $this->compressImage($ticketFile, 'ticket-photos');
+
+            // Perform OCR to extract price
+            try {
+                $ocrDetectedPrice = $this->extractPriceFromTicket($ticketFile);
+            } catch (\Exception $e) {
+                Log::warning('OCR failed: ' . $e->getMessage());
+            }
         }
 
         // Create price record
         if ($validated['price_amount'] || $ticketPhotoUrl) {
+            // Use manually entered price if available, otherwise use OCR detected price
+            $finalPrice = $validated['price_amount'] ?? $ocrDetectedPrice ?? 0;
+
             $review->prices()->create([
-                'amount' => $validated['price_amount'] ?? $ocrDetectedPrice ?? 0,
+                'amount' => $finalPrice,
                 'currency' => 'EUR',
                 'ticket_photo_url' => $ticketPhotoUrl,
                 'notes' => $validated['price_notes'] ?? null,
@@ -252,5 +263,103 @@ class ReviewController extends Controller
         return redirect()
             ->route('networks.reviews.index', $network)
             ->with('success', 'Reseña eliminada exitosamente.');
+    }
+
+    /**
+     * Compress and optimize image to ~100KB
+     * Max 1MB allowed
+     */
+    private function compressImage($file, $directory): string
+    {
+        // Read image with Intervention
+        $image = Image::read($file);
+
+        // Resize maintaining aspect ratio (max width: 1200px)
+        $image->scaleDown(width: 1200);
+
+        // Generate unique filename
+        $filename = uniqid() . '.jpg';
+        $path = $directory . '/' . $filename;
+        $fullPath = storage_path('app/public/' . $path);
+
+        // Ensure directory exists
+        if (!file_exists(dirname($fullPath))) {
+            mkdir(dirname($fullPath), 0755, true);
+        }
+
+        // Start with quality 85
+        $quality = 85;
+        $image->toJpeg($quality)->save($fullPath);
+
+        // Check file size and reduce quality if needed to reach ~100KB
+        $fileSize = filesize($fullPath);
+        $targetSize = 100 * 1024; // 100KB target
+        $maxSize = 1024 * 1024; // 1MB max
+
+        // Iteratively reduce quality to reach target size
+        while ($fileSize > $targetSize && $quality > 40) {
+            $quality -= 5;
+            $image->toJpeg($quality)->save($fullPath);
+            $fileSize = filesize($fullPath);
+        }
+
+        // If still over 1MB, resize further and compress more
+        if ($fileSize > $maxSize) {
+            $image->scaleDown(width: 800);
+            $quality = 60;
+            $image->toJpeg($quality)->save($fullPath);
+        }
+
+        return Storage::url($path);
+    }
+
+    /**
+     * Extract price from ticket using Tesseract OCR
+     */
+    private function extractPriceFromTicket($file): ?float
+    {
+        // Save temp file for OCR processing
+        $tempPath = $file->store('temp');
+        $fullPath = storage_path('app/' . $tempPath);
+
+        try {
+            // Run Tesseract OCR
+            $ocr = new TesseractOCR($fullPath);
+            $ocr->lang('spa', 'eng'); // Spanish and English
+            $text = $ocr->run();
+
+            // Clean up temp file
+            Storage::delete($tempPath);
+
+            // Extract price patterns (common in Spanish/European tickets)
+            $patterns = [
+                '/TOTAL[:\s]*(\d+[.,]\d{2})/',      // TOTAL: 12.50
+                '/IMPORTE[:\s]*(\d+[.,]\d{2})/',    // IMPORTE: 12.50
+                '/(\d+[.,]\d{2})\s*€/',              // 12.50€ or 12,50€
+                '/€\s*(\d+[.,]\d{2})/',              // €12.50
+                '/(\d{1,3}[.,]\d{2})/',              // 12.50 or 12,50 (last resort)
+            ];
+
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $text, $matches)) {
+                    // Convert comma to dot for decimal
+                    $price = str_replace(',', '.', $matches[1]);
+                    $priceFloat = (float) $price;
+
+                    // Validate reasonable price range (0.01 to 999.99)
+                    if ($priceFloat >= 0.01 && $priceFloat <= 999.99) {
+                        return $priceFloat;
+                    }
+                }
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            // Clean up temp file on error
+            if (Storage::exists($tempPath)) {
+                Storage::delete($tempPath);
+            }
+            throw $e;
+        }
     }
 }
