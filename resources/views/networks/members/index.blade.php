@@ -17,13 +17,14 @@
             </div>
 
             @if(in_array($memberRole, ['owner', 'admin']) || ($network->allow_member_invites && $memberRole === 'member'))
-                <a href="{{ route('networks.members.invite', $network) }}"
-                   class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl transition duration-200 shadow-lg">
+                <button
+                    onclick="document.getElementById('inviteModal').classList.remove('hidden')"
+                    class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl transition duration-200 shadow-lg">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
                     Invitar Miembro
-                </a>
+                </button>
             @endif
         </div>
     </x-slot>
@@ -221,4 +222,119 @@
             </div>
         </div>
     </div>
+
+    <!-- Invite Member Modal -->
+    <div id="inviteModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50" onclick="if(event.target === this) this.classList.add('hidden')">
+        <div class="relative top-20 mx-auto p-8 border w-full max-w-md shadow-2xl rounded-2xl bg-white" onclick="event.stopPropagation()">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-2xl font-bold text-gray-900">Invitar Miembro</h3>
+                <button
+                    onclick="document.getElementById('inviteModal').classList.add('hidden')"
+                    class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <form method="POST" action="{{ route('networks.members.store', $network) }}" class="space-y-6">
+                @csrf
+
+                <!-- Success Message -->
+                @if(session('success'))
+                    <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
+                        {{ session('success') }}
+                    </div>
+                @endif
+
+                <!-- Error Message -->
+                @if(session('error'))
+                    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+                        {{ session('error') }}
+                    </div>
+                @endif
+
+                <!-- Email Field -->
+                <div>
+                    <label for="email" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                        Email del Usuario
+                    </label>
+                    <input
+                        id="email"
+                        type="email"
+                        name="email"
+                        value="{{ old('email') }}"
+                        required
+                        autofocus
+                        class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                        placeholder="usuario@example.com"
+                    />
+                    @error('email')
+                        <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                    <p class="mt-2 text-xs text-gray-600">
+                        El usuario debe estar registrado en la plataforma.
+                    </p>
+                </div>
+
+                <!-- Role Field -->
+                <div>
+                    <label for="role" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        Rol
+                    </label>
+                    <select
+                        id="role"
+                        name="role"
+                        required
+                        class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                    >
+                        <option value="member" {{ old('role') == 'member' ? 'selected' : '' }}>Miembro</option>
+                        @if($memberRole === 'owner')
+                            <option value="admin" {{ old('role') == 'admin' ? 'selected' : '' }}>Administrador</option>
+                        @endif
+                    </select>
+                    @error('role')
+                        <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="flex justify-end gap-3 pt-4">
+                    <button
+                        type="button"
+                        onclick="document.getElementById('inviteModal').classList.add('hidden')"
+                        class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg transition">
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        class="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-lg transition shadow-lg">
+                        Invitar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @if(session('error') || session('success'))
+        <script>
+            // Auto-open modal if there are errors or success messages
+            document.getElementById('inviteModal').classList.remove('hidden');
+        </script>
+    @endif
+
+    @if($errors->has('email') || $errors->has('role'))
+        <script>
+            // Auto-open modal if there are validation errors
+            document.getElementById('inviteModal').classList.remove('hidden');
+        </script>
+    @endif
 </x-app-layout>

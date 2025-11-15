@@ -73,12 +73,19 @@ class NetworkMemberController extends Controller
         $user = User::where('email', $validated['email'])->first();
 
         if (!$user) {
-            return back()->with('error', 'No se encontró un usuario con ese email. El usuario debe registrarse primero.');
+            return redirect()
+                ->route('networks.members.index', $network)
+                ->with('error', 'No se encontró un usuario con ese email. El usuario debe registrarse primero.');
         }
+
+        // Refresh members relation to get latest data
+        $network->load('members');
 
         // Check if already a member
         if ($network->members->contains($user->id)) {
-            return back()->with('error', 'Este usuario ya es miembro de la red.');
+            return redirect()
+                ->route('networks.members.index', $network)
+                ->with('error', 'Este usuario ya es miembro de la red.');
         }
 
         // Add member
@@ -89,7 +96,7 @@ class NetworkMemberController extends Controller
 
         return redirect()
             ->route('networks.members.index', $network)
-            ->with('success', 'Miembro añadido exitosamente.');
+            ->with('success', '¡Miembro añadido exitosamente! ' . $user->name . ' ahora es parte de la red.');
     }
 
     /**
