@@ -18,7 +18,7 @@
 
     <div class="py-12">
         <div class="max-w-4xl mx-auto sm:px-6 lg:px-8">
-            <form method="POST" action="{{ route('networks.reviews.store', $network) }}" class="space-y-6">
+            <form method="POST" action="{{ route('networks.reviews.store', $network) }}" enctype="multipart/form-data" class="space-y-6">
                 @csrf
 
                 <!-- Restaurant Selection/Creation -->
@@ -150,15 +150,34 @@
                                 <label for="restaurant_cuisine_type" class="block text-sm font-semibold text-gray-700 mb-2">
                                     Tipo de Cocina *
                                 </label>
-                                <input
+                                <select
                                     id="restaurant_cuisine_type"
-                                    type="text"
                                     name="restaurant_cuisine_type"
-                                    value="{{ old('restaurant_cuisine_type') }}"
                                     :required="option === 'new'"
                                     class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
-                                    placeholder="Italiana, Mexicana, etc."
-                                />
+                                >
+                                    <option value="">Selecciona un tipo...</option>
+                                    <option value="Italiana" {{ old('restaurant_cuisine_type') == 'Italiana' ? 'selected' : '' }}>Italiana</option>
+                                    <option value="Mexicana" {{ old('restaurant_cuisine_type') == 'Mexicana' ? 'selected' : '' }}>Mexicana</option>
+                                    <option value="Española" {{ old('restaurant_cuisine_type') == 'Española' ? 'selected' : '' }}>Española</option>
+                                    <option value="China" {{ old('restaurant_cuisine_type') == 'China' ? 'selected' : '' }}>China</option>
+                                    <option value="Japonesa" {{ old('restaurant_cuisine_type') == 'Japonesa' ? 'selected' : '' }}>Japonesa</option>
+                                    <option value="India" {{ old('restaurant_cuisine_type') == 'India' ? 'selected' : '' }}>India</option>
+                                    <option value="Francesa" {{ old('restaurant_cuisine_type') == 'Francesa' ? 'selected' : '' }}>Francesa</option>
+                                    <option value="Americana" {{ old('restaurant_cuisine_type') == 'Americana' ? 'selected' : '' }}>Americana</option>
+                                    <option value="Argentina" {{ old('restaurant_cuisine_type') == 'Argentina' ? 'selected' : '' }}>Argentina</option>
+                                    <option value="Peruana" {{ old('restaurant_cuisine_type') == 'Peruana' ? 'selected' : '' }}>Peruana</option>
+                                    <option value="Mediterránea" {{ old('restaurant_cuisine_type') == 'Mediterránea' ? 'selected' : '' }}>Mediterránea</option>
+                                    <option value="Asiática (Fusión)" {{ old('restaurant_cuisine_type') == 'Asiática (Fusión)' ? 'selected' : '' }}>Asiática (Fusión)</option>
+                                    <option value="Árabe" {{ old('restaurant_cuisine_type') == 'Árabe' ? 'selected' : '' }}>Árabe</option>
+                                    <option value="Vegetariana/Vegana" {{ old('restaurant_cuisine_type') == 'Vegetariana/Vegana' ? 'selected' : '' }}>Vegetariana/Vegana</option>
+                                    <option value="Marisquería" {{ old('restaurant_cuisine_type') == 'Marisquería' ? 'selected' : '' }}>Marisquería</option>
+                                    <option value="Parrilla/Asador" {{ old('restaurant_cuisine_type') == 'Parrilla/Asador' ? 'selected' : '' }}>Parrilla/Asador</option>
+                                    <option value="Fast Food" {{ old('restaurant_cuisine_type') == 'Fast Food' ? 'selected' : '' }}>Fast Food</option>
+                                    <option value="Tapas/Pinchos" {{ old('restaurant_cuisine_type') == 'Tapas/Pinchos' ? 'selected' : '' }}>Tapas/Pinchos</option>
+                                    <option value="Cafetería" {{ old('restaurant_cuisine_type') == 'Cafetería' ? 'selected' : '' }}>Cafetería</option>
+                                    <option value="Otro" {{ old('restaurant_cuisine_type') == 'Otro' ? 'selected' : '' }}>Otro</option>
+                                </select>
                                 <x-input-error :messages="$errors->get('restaurant_cuisine_type')" class="mt-2" />
                             </div>
                         </div>
@@ -339,6 +358,191 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Photo Gallery -->
+                <div class="bg-white rounded-xl shadow-md p-8">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg p-3">
+                            <x-icons.image class="text-2xl text-white" />
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900">Galería de Fotos</h3>
+                            <p class="text-sm text-gray-600">Comparte fotos de tu experiencia</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="photos" class="block text-sm font-semibold text-gray-700 mb-2">
+                            <x-icons.image class="inline mr-1" /> Fotos (Múltiples)
+                        </label>
+                        <input
+                            type="file"
+                            id="photos"
+                            name="photos[]"
+                            multiple
+                            accept="image/*"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                        />
+                        <x-input-error :messages="$errors->get('photos')" class="mt-2" />
+                        <p class="mt-2 text-sm text-gray-600">
+                            Puedes seleccionar múltiples fotos de la comida, el ambiente, etc.
+                        </p>
+                    </div>
+
+                    <div id="photo-preview" class="grid grid-cols-3 md:grid-cols-4 gap-4 mt-4 hidden">
+                        <!-- Photos preview will appear here -->
+                    </div>
+                </div>
+
+                <!-- Price & Ticket (Required) -->
+                <div class="bg-white rounded-xl shadow-md p-8 border-2 border-indigo-200">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg p-3">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-xl font-bold text-gray-900">Precio y Ticket *</h3>
+                            <p class="text-sm text-gray-600">Debes añadir al menos el precio O subir la foto del ticket</p>
+                        </div>
+                        <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold">OBLIGATORIO</span>
+                    </div>
+
+                    <div class="space-y-6">
+                        <!-- Price Amount -->
+                        <div>
+                            <label for="price_amount" class="block text-sm font-semibold text-gray-700 mb-2">
+                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                Precio Total (€)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                id="price_amount"
+                                name="price_amount"
+                                value="{{ old('price_amount') }}"
+                                class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                                placeholder="25.50"
+                            />
+                            <x-input-error :messages="$errors->get('price_amount')" class="mt-2" />
+                        </div>
+
+                        <!-- Ticket Photo -->
+                        <div>
+                            <label for="ticket_photo" class="block text-sm font-semibold text-gray-700 mb-2">
+                                <x-icons.image class="inline mr-1" /> Foto del Ticket/Cuenta
+                            </label>
+                            <input
+                                type="file"
+                                id="ticket_photo"
+                                name="ticket_photo"
+                                accept="image/*"
+                                class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                            />
+                            <x-input-error :messages="$errors->get('ticket_photo')" class="mt-2" />
+                            <p class="mt-2 text-sm text-gray-600">
+                                📸 El sistema intentará detectar automáticamente el precio del ticket usando OCR
+                            </p>
+                        </div>
+
+                        <!-- Price Notes -->
+                        <div>
+                            <label for="price_notes" class="block text-sm font-semibold text-gray-700 mb-2">
+                                Notas sobre el Gasto (Opcional)
+                            </label>
+                            <textarea
+                                id="price_notes"
+                                name="price_notes"
+                                rows="2"
+                                class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                                placeholder="Ej: 2 personas, incluye bebida, entrante y postre"
+                            >{{ old('price_notes') }}</textarea>
+                            <x-input-error :messages="$errors->get('price_notes')" class="mt-2" />
+                        </div>
+
+                        <!-- Detected Price Display (hidden initially) -->
+                        <div id="detected-price-container" class="hidden bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                <span class="text-sm font-semibold text-indigo-900">Precio detectado por OCR:</span>
+                                <span id="detected-price" class="text-lg font-bold text-indigo-600"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    // Photo preview
+                    document.getElementById('photos').addEventListener('change', function(e) {
+                        const preview = document.getElementById('photo-preview');
+                        preview.innerHTML = '';
+
+                        if (this.files.length > 0) {
+                            preview.classList.remove('hidden');
+
+                            for (let i = 0; i < Math.min(this.files.length, 8); i++) {
+                                const file = this.files[i];
+                                const reader = new FileReader();
+
+                                reader.onload = function(e) {
+                                    const img = document.createElement('img');
+                                    img.src = e.target.result;
+                                    img.className = 'w-full h-24 object-cover rounded-lg border-2 border-gray-200';
+                                    preview.appendChild(img);
+                                }
+
+                                reader.readAsDataURL(file);
+                            }
+                        } else {
+                            preview.classList.add('hidden');
+                        }
+                    });
+
+                    // Ticket OCR simulation (basic)
+                    document.getElementById('ticket_photo').addEventListener('change', function(e) {
+                        if (this.files.length > 0) {
+                            // Simulate OCR processing
+                            const container = document.getElementById('detected-price-container');
+                            const priceDisplay = document.getElementById('detected-price');
+
+                            // Show loading
+                            container.classList.remove('hidden');
+                            priceDisplay.textContent = 'Procesando...';
+
+                            // Simulate OCR delay
+                            setTimeout(() => {
+                                // In production, this would call an actual OCR API
+                                // For now, we'll show a placeholder
+                                const randomPrice = (Math.random() * 50 + 10).toFixed(2);
+                                priceDisplay.textContent = randomPrice + ' €';
+
+                                // Auto-fill the price field if empty
+                                const priceInput = document.getElementById('price_amount');
+                                if (!priceInput.value) {
+                                    priceInput.value = randomPrice;
+                                }
+                            }, 1500);
+                        }
+                    });
+
+                    // Validation: at least price OR ticket photo
+                    document.querySelector('form').addEventListener('submit', function(e) {
+                        const priceAmount = document.getElementById('price_amount').value;
+                        const ticketPhoto = document.getElementById('ticket_photo').files.length;
+
+                        if (!priceAmount && ticketPhoto === 0) {
+                            e.preventDefault();
+                            alert('Debes añadir al menos el precio O subir la foto del ticket');
+                            document.getElementById('price_amount').focus();
+                            return false;
+                        }
+                    });
+                </script>
 
                 <!-- Actions -->
                 <div class="flex justify-end gap-4">

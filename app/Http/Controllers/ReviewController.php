@@ -61,6 +61,13 @@ class ReviewController extends Controller
             'comment' => 'required|string',
             'date_of_visit' => 'nullable|date',
             'meal_type' => 'nullable|in:breakfast,lunch,dinner',
+            // Photo gallery
+            'photos' => 'nullable|array|max:10',
+            'photos.*' => 'image|mimes:jpeg,png,jpg,gif|max:5120', // 5MB max per photo
+            // Price and ticket (at least one required)
+            'price_amount' => 'nullable|numeric|min:0|max:9999.99',
+            'ticket_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,pdf|max:5120',
+            'price_notes' => 'nullable|string|max:500',
         ];
 
         if ($request->input('restaurant_option') === 'new') {
@@ -77,6 +84,13 @@ class ReviewController extends Controller
         }
 
         $validated = $request->validate($rules);
+
+        // Validate that at least price OR ticket photo is provided
+        if (!$request->filled('price_amount') && !$request->hasFile('ticket_photo')) {
+            return back()
+                ->withInput()
+                ->withErrors(['price_amount' => 'Debes proporcionar al menos el precio o una foto del ticket.']);
+        }
 
         // Handle restaurant creation if needed
         if ($request->input('restaurant_option') === 'new') {
@@ -103,6 +117,40 @@ class ReviewController extends Controller
             'date_of_visit' => $validated['date_of_visit'] ?? null,
             'meal_type' => $validated['meal_type'] ?? null,
         ]);
+
+        // Handle photo gallery upload
+        if ($request->hasFile('photos')) {
+            foreach ($request->file('photos') as $index => $photo) {
+                $path = $photo->store('review-photos', 'public');
+                $review->photos()->create([
+                    'photo_url' => Storage::url($path),
+                    'order' => $index,
+                ]);
+            }
+        }
+
+        // Handle ticket photo upload and OCR
+        $ticketPhotoUrl = null;
+        $ocrDetectedPrice = null;
+
+        if ($request->hasFile('ticket_photo')) {
+            $path = $request->file('ticket_photo')->store('ticket-photos', 'public');
+            $ticketPhotoUrl = Storage::url($path);
+
+            // Basic OCR simulation - In production, use Tesseract or Cloud Vision API
+            // For now, we'll use the manually entered price
+            $ocrDetectedPrice = $validated['price_amount'] ?? null;
+        }
+
+        // Create price record
+        if ($validated['price_amount'] || $ticketPhotoUrl) {
+            $review->prices()->create([
+                'amount' => $validated['price_amount'] ?? $ocrDetectedPrice ?? 0,
+                'currency' => 'EUR',
+                'ticket_photo_url' => $ticketPhotoUrl,
+                'notes' => $validated['price_notes'] ?? null,
+            ]);
+        }
 
         return redirect()
             ->route('networks.reviews.show', [$network, $review])
