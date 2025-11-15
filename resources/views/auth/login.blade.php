@@ -115,7 +115,7 @@
                     </div>
                 </form>
 
-                <!-- Social Login (Optional) -->
+                <!-- Social Login -->
                 <div class="mt-8">
                     <div class="relative">
                         <div class="absolute inset-0 flex items-center">
@@ -126,15 +126,11 @@
                         </div>
                     </div>
 
-                    <div class="mt-6 grid grid-cols-2 gap-4">
-                        <button class="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition">
+                    <div class="mt-6">
+                        <a href="{{ route('auth.google') }}" class="flex items-center justify-center w-full px-4 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition shadow-sm">
                             <i class="fab fa-google mr-2 text-red-500"></i>
-                            <span class="text-gray-700 font-medium">Google</span>
-                        </button>
-                        <button class="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition">
-                            <i class="fab fa-facebook mr-2 text-blue-600"></i>
-                            <span class="text-gray-700 font-medium">Facebook</span>
-                        </button>
+                            <span class="text-gray-700 font-medium">Continuar con Google</span>
+                        </a>
                     </div>
                 </div>
             </div>
