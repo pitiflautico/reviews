@@ -458,21 +458,22 @@ MAIL_PASSWORD=...
 
 ## 🗺️ ROADMAP
 
-### ✅ Fase 0 - Fundamentos (ACTUAL)
+### ✅ Fase 0 - Fundamentos (COMPLETADA)
 - [x] Documentación completa
-- [ ] Instalación de Laravel
-- [ ] Configuración base
+- [x] Instalación de Laravel
+- [x] Configuración base
 
-### 🔄 Fase 1 - Autenticación
-- [ ] Laravel Breeze
-- [ ] Integración con Listox
-- [ ] Reset de contraseña
+### ✅ Fase 1 - Autenticación (COMPLETADA)
+- [x] Google OAuth con Laravel Socialite
+- [x] Sistema de autenticación completo
+- [x] Integración UI moderna
 
-### 📋 Fase 2 - Sistema de Redes
-- [ ] CRUD de redes
-- [ ] Sistema de invitaciones
-- [ ] Roles y permisos
-- [ ] Dashboard de red
+### ✅ Fase 2 - Sistema de Redes (COMPLETADA)
+- [x] CRUD de redes
+- [x] Sistema de gestión de miembros
+- [x] Roles y permisos (owner, admin, member)
+- [x] Dashboard de red con estadísticas
+- [x] Sistema de invitaciones por email
 
 ### 🍴 Fase 3 - Restaurantes
 - [ ] Modelo de restaurante
@@ -600,9 +601,16 @@ Para dudas o problemas:
 
 ## 📊 ESTADO DEL PROYECTO
 
-**Fase actual**: Fase 0 - Fundamentos
-**Progreso**: 5%
+**Fase actual**: Fase 3 - Restaurantes
+**Progreso**: 40%
 **Última actualización**: 2025-11-15
+
+### Últimas Mejoras
+- ✅ Sistema de gestión de miembros completamente funcional
+- ✅ Autenticación OAuth con Google
+- ✅ UI moderna con Tailwind CSS
+- ✅ Fix: Casting correcto de fechas en modelo Membership (Pivot)
+- ✅ Fix: Referencia correcta a tabla 'memberships' en queries
 
 ---
 

@@ -538,7 +538,8 @@ public function networks(): BelongsToMany
 {
     return $this->belongsToMany(Network::class, 'memberships')
         ->withPivot('role', 'joined_at')
-        ->withTimestamps();
+        ->withTimestamps()
+        ->using(Membership::class);  // Custom pivot model
 }
 
 public function ownedNetworks(): BelongsToMany
@@ -551,7 +552,8 @@ public function members(): BelongsToMany
 {
     return $this->belongsToMany(User::class, 'memberships')
         ->withPivot('role', 'joined_at')
-        ->withTimestamps();
+        ->withTimestamps()
+        ->using(Membership::class);  // Custom pivot model
 }
 
 public function owner(): BelongsToMany
@@ -562,6 +564,35 @@ public function owner(): BelongsToMany
 public function admins(): BelongsToMany
 {
     return $this->members()->wherePivotIn('role', ['owner', 'admin']);
+}
+
+// Membership.php (Custom Pivot Model)
+use Illuminate\Database\Eloquent\Relations\Pivot;
+
+class Membership extends Pivot
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'network_id',
+        'role',
+        'joined_at',
+    ];
+
+    protected $casts = [
+        'joined_at' => 'datetime',  // Important: Cast to datetime for proper date handling
+    ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function network(): BelongsTo
+    {
+        return $this->belongsTo(Network::class);
+    }
 }
 ```
 

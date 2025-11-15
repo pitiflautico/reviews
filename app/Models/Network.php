@@ -65,7 +65,8 @@ class Network extends Model
     {
         return $this->belongsToMany(User::class, 'memberships')
             ->withPivot('role', 'joined_at')
-            ->withTimestamps();
+            ->withTimestamps()
+            ->using(Membership::class);
     }
 
     /**
